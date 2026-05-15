@@ -1,0 +1,45 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: payments
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  bank-simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile.bank-simulator
+    ports:
+      - "9090:9090"
+    environment:
+      HTTP_PORT: "9090"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/payments?sslmode=disable
+      HTTP_PORT: "8080"
+      BANK_TIMEOUT: "10s"
+      BANK_MODE: "http"
+      BANK_URL: "http://bank-simulator:9090"
+    depends_on:
+      db:
+        condition: service_healthy
+      bank-simulator:
+        condition: service_healthy
+    command: ["./server"]

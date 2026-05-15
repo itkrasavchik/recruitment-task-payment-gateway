@@ -1,0 +1,23 @@
+FROM golang:1.26-alpine AS builder
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o bank-simulator ./cmd/bank-simulator
+
+FROM alpine:3.21
+
+RUN apk update && apk upgrade
+RUN rm -rf /var/cache/apk/* /tmp/*
+
+RUN adduser -D appuser
+USER appuser
+
+WORKDIR /app
+COPY --from=builder /app/bank-simulator .
+
+EXPOSE 9090
+CMD ["./bank-simulator"]
